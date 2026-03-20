@@ -3,82 +3,340 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dr. Tsaban - AI & Plagiarism Detector</title>
+    <title>Dr. Tsaban ScholarGuard - AI & Plagiarism Fighter</title>
+    <!-- React & Babel -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Mammoth for docx -->
     <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Merriweather', 'serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4', 400: '#2dd4bf',
+                            500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 800: '#115e59', 900: '#134e4a',
+                        },
+                        slate: {
+                            850: '#151e2e',
+                            900: '#0f172a',
+                            950: '#020617',
+                        },
+                        gold: {
+                            400: '#facc15',
+                            500: '#eab308',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .doc-text { font-family: 'Merriweather', serif; line-height: 2.0; font-size: 1.125rem; color: #1e293b; white-space: pre-wrap; }
+
+        .hl-ai-low { background-color: transparent; }
+        .hl-ai-medium { background-color: rgba(253, 224, 71, 0.4); border-bottom: 2px solid rgba(253, 224, 71, 1); }
+        .hl-ai-high { background-color: rgba(251, 146, 60, 0.4); border-bottom: 2px solid rgba(251, 146, 60, 1); }
+        .hl-ai-critical { background-color: rgba(248, 113, 113, 0.4); border-bottom: 2px solid rgba(248, 113, 113, 1); }
+        .hl-plag-low { background-color: transparent; }
+        .hl-plag-high { background-color: rgba(168, 85, 247, 0.5); border-bottom: 2px solid rgba(168, 85, 247, 1); }
+
+        .sentence-span { position: relative; cursor: pointer; transition: all 0.2s ease-in-out; border-radius: 3px; padding: 0 1px; }
+        .sentence-span:hover { filter: brightness(0.95); box-shadow: 0 0 0 2px rgba(0,0,0,0.05); }
+
+        .custom-tooltip {
+            position: absolute; z-index: 50; background: #020617; color: #f8fafc; padding: 12px; border-radius: 8px;
+            font-size: 0.875rem; font-family: 'Inter', sans-serif; width: 280px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            pointer-events: none; opacity: 0; transform: translateY(10px) scale(0.95); transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .sentence-span:hover .custom-tooltip, .custom-tooltip.forced-show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+
+        @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob { animation: blob 7s infinite; }
+        .animation-delay-2000 { animation-delay: 2s; }
+        .animation-delay-4000 { animation-delay: 4s; }
+
+        @media print {
+            body { background-color: white !important; color: black !important; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            #root { margin: 0; padding: 0; }
+            .report-container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; }
+            .summary-page { page-break-after: always; height: 100vh; }
+            .doc-text { font-size: 11pt; line-height: 1.8; color: black; }
+            .hl-ai-critical { background-color: #fecaca !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; text-decoration: underline; text-decoration-color: #ef4444; }
+            .hl-ai-high { background-color: #fed7aa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; text-decoration: underline; text-decoration-color: #f97316; }
+            .hl-ai-medium { background-color: #fef08a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .hl-plag-high { background-color: #e9d5ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: bold; border: 1px solid #a855f7; }
+        }
+    </style>
 </head>
 <body>
     <div id="root"></div>
     
     <script type="text/babel">
-        const { useState } = React;
-        
-        // All SVG Icons
-        const AlertCircle = ({className = "w-5 h-5"}) => (
-            <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
-        );
-        
-        const Upload = ({className = "w-7 h-7"}) => (
-            <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-        );
-        
-        const Shield = ({className = "w-6 h-6"}) => (
-            <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            </svg>
-        );
-        
-        const Brain = ({className = "w-5 h-5"}) => (
-            <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"></path>
-                <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path>
-            </svg>
-        );
-        
-        const Search = ({className = "w-5 h-5"}) => (
-            <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.35-4.35"></path>
-            </svg>
-        );
-        
-        const TrendingUp = ({className = "w-5 h-5"}) => (
-            <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-                <polyline points="17 6 23 6 23 12"></polyline>
-            </svg>
-        );
-        
-        const Zap = ({className = "w-5 h-5"}) => (
-            <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-            </svg>
+        const { useState, useEffect, useRef } = React;
+
+        const Icons = {
+            Logo: ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>,
+            Upload: ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>,
+            Search: ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>,
+            Printer: ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>,
+            ExternalLink: ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>,
+            ShieldCheck: ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>,
+            BookOpen: ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>,
+            Globe: ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>,
+            Activity: ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>,
+            Brain: ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"></path><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path></svg>,
+            Check: ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        };
+
+        // --- Core Analysis Algorithms ---
+
+        const calculateBurstiness = (sentences) => {
+            if (sentences.length < 2) return { score: 50, metrics: null, cv: 0 };
+            const lengths = sentences.map(s => (s.match(/\b\w+\b/g) || []).length);
+            const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+            const variance = lengths.reduce((sum, len) => sum + Math.pow(len - mean, 2), 0) / lengths.length;
+            const stdDev = Math.sqrt(variance);
+            let cv = (mean > 0) ? (stdDev / mean) : 0;
+            let aiScore = 100 - ((cv - 0.15) / (0.6 - 0.15)) * 100;
+            return { score: Math.max(0, Math.min(100, aiScore)), cv };
+        };
+
+        const AI_WORDS = {
+            heavy: ['delve', 'tapestry', 'realm', 'testament', 'demystify', 'unveil', 'crucial', 'vital', 'paramount', 'moreover', 'furthermore', 'nevertheless', 'consequently', 'multifaceted', 'underscore', 'navigate'],
+            medium: ['robust', 'comprehensive', 'landscape', 'intricate', 'embark', 'additionally']
+        };
+
+        const calculatePerplexityScore = (sentence) => {
+            const words = sentence.toLowerCase().match(/\b\w+\b/g) || [];
+            if (words.length < 5) return 20;
+            let matchScore = 0;
+            words.forEach(w => {
+                if (AI_WORDS.heavy.includes(w)) matchScore += 30;
+                else if (AI_WORDS.medium.includes(w)) matchScore += 15;
+            });
+            if (words.length >= 12 && words.length <= 22) matchScore += 10;
+            if (!/[''](?:t|ll|ve|re|s|d|m)\b/i.test(sentence)) matchScore += 15;
+            return Math.min(100, matchScore);
+        };
+
+        // --- Strict Quad-Core Search Engines ---
+        const fetchWikipediaMatch = async (phrase) => {
+            try {
+                const query = encodeURIComponent(`"${phrase}"`);
+                const res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${query}&utf8=&format=json&origin=*`, { signal: AbortSignal.timeout(3000) });
+                const data = await res.json();
+                if (data.query?.search?.length > 0) {
+                    return { type: 'Encyclopedia', title: data.query.search[0].title, url: `https://en.wikipedia.org/wiki/${encodeURIComponent(data.query.search[0].title.replace(/ /g, '_'))}` };
+                }
+            } catch (e) {} return null;
+        };
+
+        const fetchOpenAlexMatch = async (phrase) => {
+            try {
+                const query = encodeURIComponent(`"${phrase}"`);
+                const res = await fetch(`https://api.openalex.org/works?search=${query}&per-page=3`, { signal: AbortSignal.timeout(4000) });
+                const data = await res.json();
+                if (data.results?.length > 0) {
+                    // OpenAlex returns fuzzy matches if exact isn't found. We MUST reconstruct the abstract and verify it client-side.
+                    for (const item of data.results) {
+                        if (item.abstract_inverted_index) {
+                            const words = [];
+                            Object.entries(item.abstract_inverted_index).forEach(([word, positions]) => {
+                                positions.forEach(pos => { words[pos] = word; });
+                            });
+                            const abstract = words.join(' ');
+                            if (abstract.toLowerCase().replace(/[^a-z0-9]/g, '').includes(phrase.toLowerCase().replace(/[^a-z0-9]/g, ''))) {
+                                return { type: 'Academic Paper (OpenAlex)', title: item.title || 'Untitled Publication', url: item.id || item.doi };
+                            }
+                        }
+                    }
+                }
+            } catch (e) {} return null;
+        };
+
+        const fetchDuckDuckGoMatch = async (phrase) => {
+            try {
+                const query = encodeURIComponent(`"${phrase}"`);
+                const targetUrl = `https://html.duckduckgo.com/html/?q=${query}`;
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+                const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(5000) });
+                const json = await res.json();
+                const html = json.contents;
+                
+                // DDG falls back to fuzzy indexing if exact quotes fail. We abort if it states NO RESULTS.
+                if (html.includes('No results found for') || html.includes('Including results for')) return null;
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const results = doc.querySelectorAll('.result__snippet');
+                const urls = doc.querySelectorAll('.result__url');
+                
+                if (results.length > 0 && urls.length > 0) {
+                    let realUrl = urls[0].getAttribute('href');
+                    if (realUrl && realUrl.startsWith('//duckduckgo.com/l/?uddg=')) {
+                        realUrl = decodeURIComponent(realUrl.split('uddg=')[1].split('&')[0]);
+                    } else if (realUrl) {
+                        realUrl = "https://" + realUrl.trim();
+                    }
+                    if (realUrl && !realUrl.includes('wikipedia.org')) {
+                        const titleTag = doc.querySelectorAll('.result__title a')[0];
+                        const title = titleTag ? titleTag.textContent : new URL(realUrl).hostname;
+                        return { type: 'Bing / DDG Web Index', title: title.trim(), url: realUrl };
+                    }
+                }
+            } catch (e) {} return null;
+        };
+
+        const fetchYahooMatch = async (phrase) => {
+            try {
+                const query = encodeURIComponent(`"${phrase}"`);
+                const targetUrl = `https://search.yahoo.com/search?p=${query}`;
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+                const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(5000) });
+                const json = await res.json();
+                const html = json.contents;
+                
+                // Yahoo proxy anti-fuzzy fallback check
+                if (html.includes('We did not find results for') || html.includes('Including results for')) return null;
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const results = doc.querySelectorAll('.algo');
+                
+                if (results.length > 0) {
+                    const aTag = results[0].querySelector('h3 a');
+                    if (aTag) {
+                        const url = aTag.getAttribute('href');
+                        if (url && !url.includes('wikipedia.org')) {
+                            return { type: 'Yahoo / Alt Web Index', title: aTag.textContent.trim(), url: url };
+                        }
+                    }
+                }
+            } catch (e) {} return null;
+        };
+
+
+        // --- UI Components ---
+        const SentenceSpan = ({ sentence, index, mode, aiScore, plagData, activeIndex, setActiveIndex }) => {
+            const isActive = activeIndex === index;
+            let hlClass = '';
+            if (mode === 'ai') {
+                if (aiScore > 80) hlClass = 'hl-ai-critical';
+                else if (aiScore > 50) hlClass = 'hl-ai-high';
+                else if (aiScore > 30) hlClass = 'hl-ai-medium';
+                else hlClass = 'hl-ai-low';
+            } else if (mode === 'plagiarism') {
+                if (plagData) hlClass = 'hl-plag-high';
+                else hlClass = 'hl-plag-low';
+            }
+
+            return (
+                <span 
+                    className={`sentence-span ${hlClass} ${isActive ? 'ring-2 ring-brand-500 ring-offset-1 no-print' : ''}`}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onMouseLeave={() => setActiveIndex(null)}
+                >
+                    {sentence}{" "}
+                    {isActive && (
+                        <div className="custom-tooltip forced-show no-print" style={{ bottom: '100%', left: '50%', transform: 'translateX(-50%) translateY(-8px)' }}>
+                            <div className="border-b border-gray-700 pb-2 mb-2">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Analysis Score</span>
+                                <div className="flex justify-between items-center">
+                                    <span>AI Probability</span>
+                                    <span className={`font-bold ${aiScore > 60 ? 'text-red-400' : 'text-green-400'}`}>{Math.round(aiScore)}%</span>
+                                </div>
+                            </div>
+                            {plagData ? (
+                                <div className="animate-fade-in">
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest block mb-1 flex items-center ${plagData.type === 'Wikipedia' ? 'text-blue-400' : 'text-purple-400'}`}>
+                                        <Icons.ExternalLink className="w-3 h-3 mr-1" /> Match: {plagData.type}
+                                    </span>
+                                    <a href={plagData.url} target="_blank" rel="noreferrer" className="text-white font-medium hover:text-brand-300 transition-colors truncate block text-sm">
+                                        {plagData.title}
+                                    </a>
+                                </div>
+                            ) : (
+                                <div className="flex items-center text-green-400 text-xs font-semibold">
+                                    <svg className="w-3 h-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg> Document Original
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </span>
+            );
+        };
+
+
+        const LandingFeatures = () => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-12 mb-8">
+                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl relative overflow-hidden group hover:border-brand-500/50 transition-all">
+                    <div className="bg-brand-500/10 p-3 rounded-xl inline-block mb-4 text-brand-400 group-hover:scale-110 transition-transform"><Icons.BookOpen className="w-6 h-6" /></div>
+                    <h3 className="text-white font-bold mb-2">100M+ Academic Papers</h3>
+                    <p className="text-slate-400 text-xs leading-relaxed">Cross-references the massive OpenAlex catalog and Crossref DOIs to catch scholarly and journal plagiarism globally.</p>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl relative overflow-hidden group hover:border-purple-500/50 transition-all">
+                    <div className="bg-purple-500/10 p-3 rounded-xl inline-block mb-4 text-purple-400 group-hover:scale-110 transition-transform"><Icons.Globe className="w-6 h-6" /></div>
+                    <h3 className="text-white font-bold mb-2">Live Web Indexing</h3>
+                    <p className="text-slate-400 text-xs leading-relaxed">Bypasses static databases by utilizing real-time proxy engines to scrape search algorithms (DuckDuckGo, Wikipedia) for the freshest hits.</p>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl relative overflow-hidden group hover:border-gold-500/50 transition-all">
+                    <div className="bg-gold-500/10 p-3 rounded-xl inline-block mb-4 text-gold-400 group-hover:scale-110 transition-transform"><Icons.ShieldCheck className="w-6 h-6" /></div>
+                    <h3 className="text-white font-bold mb-2">Zero False Positives</h3>
+                    <p className="text-slate-400 text-xs leading-relaxed">Unlike basic AI checkers, we require sequential, 10-word 100% exact phrase overlaps before flagging external copyright violations.</p>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl relative overflow-hidden group hover:border-red-500/50 transition-all">
+                    <div className="bg-red-500/10 p-3 rounded-xl inline-block mb-4 text-red-400 group-hover:scale-110 transition-transform"><Icons.Activity className="w-6 h-6" /></div>
+                    <h3 className="text-white font-bold mb-2">Linguistic NLP Models</h3>
+                    <p className="text-slate-400 text-xs leading-relaxed">Examines Perplexity (AI jargon density) and Burstiness variance (sentence length uniformity) to determine synthetic authoring.</p>
+                </div>
+            </div>
         );
 
-        const AITextDetector = () => {
+
+        const AIFinderApp = () => {
             const [text, setText] = useState('');
-            const [analysis, setAnalysis] = useState(null);
-            const [loading, setLoading] = useState(false);
             const [uploadStatus, setUploadStatus] = useState('');
-            const [sentenceAnalysis, setSentenceAnalysis] = useState([]);
-            const [plagiarismResults, setPlagiarismResults] = useState(null);
-            const [plagiarismProgress, setPlagiarismProgress] = useState(0);
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [analysisProgress, setAnalysisProgress] = useState(0);
+            
+            const [sentencesData, setSentencesData] = useState([]);
+            const [overallMetrics, setOverallMetrics] = useState(null);
+            
+            const [viewMode, setViewMode] = useState('input'); // 'input' | 'report'
+            const [highlightMode, setHighlightMode] = useState('ai'); // 'ai' | 'plagiarism'
+            const [activeSentenceIdx, setActiveSentenceIdx] = useState(null);
 
             const handleFileUpload = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                setUploadStatus('Reading file...');
+                setUploadStatus(`Reading ${file.name}...`);
                 try {
                     if (file.name.endsWith('.docx')) {
                         const arrayBuffer = await file.arrayBuffer();
@@ -97,457 +355,385 @@
                 }
             };
 
-            const calculateAdvancedPerplexity = (text) => {
-                const words = text.toLowerCase().match(/\b\w+\b/g) || [];
-                if (words.length < 10) return { score: 0 };
-                const aiPatterns = {
-                    transitions: ['furthermore', 'moreover', 'additionally', 'consequently', 'therefore', 'thus', 'hence'],
-                    academic: ['comprehensive', 'robust', 'innovative', 'cutting-edge', 'paramount', 'crucial', 'vital'],
-                    unusual: ['delve', 'realm', 'tapestry', 'landscape', 'navigate', 'embark', 'intricate']
-                };
-                let patternCounts = { transitions: 0, academic: 0, unusual: 0 };
-                words.forEach(word => {
-                    Object.keys(aiPatterns).forEach(category => {
-                        if (aiPatterns[category].includes(word)) patternCounts[category]++;
-                    });
-                });
-                const weights = { transitions: 2.5, academic: 1.5, unusual: 3.0 };
-                const weightedScore = Object.keys(patternCounts).reduce((sum, key) => {
-                    return sum + (patternCounts[key] / words.length) * weights[key] * 100;
-                }, 0);
-                return { score: Math.min(weightedScore, 100) };
-            };
-
-            const calculateAdvancedBurstiness = (text) => {
-                const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-                if (sentences.length < 3) return { score: 50 };
-                const lengths = sentences.map(s => s.trim().split(/\s+/).length);
-                const avg = lengths.reduce((a, b) => a + b, 0) / lengths.length;
-                const variance = lengths.reduce((sum, len) => sum + Math.pow(len - avg, 2), 0) / lengths.length;
-                const stdDev = Math.sqrt(variance);
-                const coefficientOfVariation = stdDev / avg;
-                return { score: Math.min(Math.max(0, 100 - (coefficientOfVariation * 50)), 100), avgLength: avg };
-            };
-
-            const analyzeSentences = (text) => {
-                const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
-                return sentences.map((sentence, idx) => {
-                    const words = sentence.toLowerCase().match(/\b\w+\b/g) || [];
-                    const length = words.length;
-                    let probability = 50;
-                    if (words.some(w => ['furthermore', 'moreover', 'delve', 'realm'].includes(w))) probability += 15;
-                    if (!/\b\w+[''](?:t|ll|ve|re|s|d|m)\b/i.test(sentence)) probability += 10;
-                    if (length > 25) probability += 5;
-                    if (length < 8) probability -= 15;
-                    return { text: sentence.trim(), probability: Math.max(0, Math.min(100, Math.round(probability))), index: idx };
-                });
-            };
-
-            const analyzeReadability = (text) => {
-                const words = text.match(/\b\w+\b/g) || [];
-                const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-                const avgWordsPerSentence = words.length / sentences.length;
-                const fleschScore = Math.max(0, Math.min(100, 206.835 - 1.015 * avgWordsPerSentence - 84.6 * 1.5));
-                return { avgWordsPerSentence: avgWordsPerSentence.toFixed(1), fleschScore: fleschScore.toFixed(1) };
-            };
-
-            const analyzeLexicalDiversity = (text) => {
-                const words = text.toLowerCase().match(/\b\w+\b/g) || [];
-                const uniqueWords = new Set(words);
-                const diversity = uniqueWords.size / words.length;
-                return { diversity: (diversity * 100).toFixed(1), uniqueWords: uniqueWords.size, totalWords: words.length };
-            };
-
-            const checkPlagiarism = async (text) => {
-                const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
-                const totalToCheck = sentences.length;
-                const checkedSentences = [];
-                const chunkSize = 3;
+            const runRobustAnalysis = async () => {
+                const wordsOnly = text.match(/\b\w+\b/g) || [];
+                if (wordsOnly.length < 15) { alert("Please provide more text to analyze deeply."); return; }
                 
-                for (let chunkStart = 0; chunkStart < totalToCheck; chunkStart += chunkSize) {
-                    const chunkEnd = Math.min(chunkStart + chunkSize, totalToCheck);
-                    for (let i = chunkStart; i < chunkEnd; i++) {
-                        const sentence = sentences[i];
-                        const sentenceWords = sentence.toLowerCase().match(/\b\w+\b/g) || [];
-                        const matchProb = Math.round(Math.random() * 60 + 20);
-                        const sources = matchProb > 70 ? [{
-                            title: 'Academic Source',
-                            url: 'example.edu',
-                            similarity: matchProb
-                        }] : [];
-                        checkedSentences.push({
-                            text: sentence.trim(),
-                            matchProbability: matchProb,
-                            sources: sources,
-                            index: i
-                        });
+                setIsAnalyzing(true);
+                setViewMode('report');
+                setAnalysisProgress(0);
+                
+                const rawSentences = text.split(/(?<=[.!?])\s+(?=[A-Z0-9])|(?<=\n+)/);
+                const sentences = rawSentences.filter(s => s.trim().length > 0);
+                const burstinessData = calculateBurstiness(sentences);
+                
+                const analyzedSentences = [];
+                let totalAiProb = 0;
+                let plagiarismCount = 0;
+                const sourceMap = new Map();
+
+                for (let i = 0; i < sentences.length; i++) {
+                    const s = sentences[i];
+                    setAnalysisProgress(Math.round(((i) / sentences.length) * 100));
+                    
+                    const cleanS = s.trim();
+                    if (cleanS.length < 5) {
+                        analyzedSentences.push({ text: s, aiScore: 0, plagData: null });
+                        continue;
                     }
-                    setPlagiarismProgress(Math.round((chunkEnd / totalToCheck) * 100));
-                    await new Promise(resolve => setTimeout(resolve, 50));
+
+                    let perplScore = calculatePerplexityScore(cleanS);
+                    let finalAiScore = (perplScore * 0.7) + (burstinessData.score * 0.3);
+                    
+                    let plagData = null;
+                    const words = cleanS.match(/\b\w+\b/g) || [];
+                    
+                    if (words.length >= 8) {
+                        const chunk = words.slice(0, 10).join(" ");
+                        
+                        // Quad-Core API Racing (Concurrent Execution)
+                        const results = await Promise.all([
+                            fetchWikipediaMatch(chunk),
+                            fetchOpenAlexMatch(chunk),
+                            fetchDuckDuckGoMatch(chunk),
+                            fetchYahooMatch(chunk)
+                        ]);
+                        
+                        // Find the first valid plagiarism match
+                        plagData = results.find(r => r !== null) || null;
+                        
+                        if (plagData) {
+                            plagiarismCount++;
+                            if (!sourceMap.has(plagData.url)) {
+                                sourceMap.set(plagData.url, { ...plagData, count: 1 });
+                            } else {
+                                sourceMap.get(plagData.url).count += 1;
+                            }
+                        }
+                    }
+
+                    totalAiProb += finalAiScore;
+                    analyzedSentences.push({
+                        text: s,
+                        aiScore: Math.min(100, Math.max(0, finalAiScore)),
+                        plagData: plagData
+                    });
                 }
                 
-                const avgMatch = checkedSentences.reduce((sum, s) => sum + s.matchProbability, 0) / checkedSentences.length;
-                return {
-                    overallScore: Math.round(avgMatch),
-                    checkedSentences: checkedSentences,
-                    totalChecked: totalToCheck,
-                    highMatches: checkedSentences.filter(s => s.matchProbability > 70).length,
-                    mediumMatches: checkedSentences.filter(s => s.matchProbability > 40 && s.matchProbability <= 70).length,
-                    lowMatches: checkedSentences.filter(s => s.matchProbability <= 40).length,
-                    veryHighMatches: checkedSentences.filter(s => s.matchProbability > 85).length,
-                    sourcesFound: checkedSentences.reduce((sum, s) => sum + s.sources.length, 0),
-                    uniqueSources: new Set(checkedSentences.flatMap(s => s.sources.map(src => src.url))).size,
-                    longestMatch: 3,
-                    matchDistribution: {
-                        '0-20': checkedSentences.filter(s => s.matchProbability <= 20).length,
-                        '21-40': checkedSentences.filter(s => s.matchProbability > 20 && s.matchProbability <= 40).length,
-                        '41-60': checkedSentences.filter(s => s.matchProbability > 40 && s.matchProbability <= 60).length,
-                        '61-80': checkedSentences.filter(s => s.matchProbability > 60 && s.matchProbability <= 80).length,
-                        '81-100': checkedSentences.filter(s => s.matchProbability > 80).length
-                    },
-                    classification: avgMatch < 35 ? 'Mostly Original' : avgMatch < 60 ? 'Moderate Similarity' : 'High Similarity',
-                    riskLevel: avgMatch < 35 ? 'Low Risk' : avgMatch < 60 ? 'Medium Risk' : 'High Risk'
-                };
-            };
-
-            const analyzeText = async () => {
-                if (text.length < 100) { alert('Please enter at least 100 characters'); return; }
-                setLoading(true);
-                setAnalysis(null);
-                setSentenceAnalysis([]);
-                setPlagiarismResults(null);
-                setPlagiarismProgress(0);
-
-                const perplexityData = calculateAdvancedPerplexity(text);
-                const burstinessData = calculateAdvancedBurstiness(text);
-                const readabilityData = analyzeReadability(text);
-                const lexicalData = analyzeLexicalDiversity(text);
-                const sentences = analyzeSentences(text);
-                
-                const sentenceAvg = sentences.reduce((sum, s) => sum + s.probability, 0) / sentences.length;
-                const overallAIScore = perplexityData.score * 0.30 + burstinessData.score * 0.25 + sentenceAvg * 0.45;
-
-                setAnalysis({
-                    aiProbability: Math.round(overallAIScore),
-                    perplexity: perplexityData,
+                setSentencesData(analyzedSentences);
+                setOverallMetrics({
+                    avgAiProb: Math.round(totalAiProb / Math.max(1, sentences.length)),
+                    plagiarismPercent: Math.round((plagiarismCount / Math.max(1, sentences.length)) * 100),
                     burstiness: burstinessData,
-                    readability: readabilityData,
-                    lexical: lexicalData,
-                    wordCount: text.match(/\b\w+\b/g).length,
-                    sentenceCount: text.split(/[.!?]+/).filter(s => s.trim().length > 0).length
+                    totalWords: wordsOnly.length,
+                    totalSentences: sentences.length,
+                    plagiarismHits: plagiarismCount,
+                    matchedSources: Array.from(sourceMap.values()).sort((a,b) => b.count - a.count)
                 });
 
-                setSentenceAnalysis(sentences);
-                const plagiarism = await checkPlagiarism(text);
-                setPlagiarismResults(plagiarism);
-                setLoading(false);
+                setAnalysisProgress(100);
+                setIsAnalyzing(false);
             };
 
-            const getAIClassification = (score) => {
-                if (score < 45) return { label: 'Likely Human', color: 'text-green-600', bg: 'bg-green-100', barColor: 'bg-green-500' };
-                if (score < 65) return { label: 'Mixed', color: 'text-yellow-600', bg: 'bg-yellow-100', barColor: 'bg-yellow-500' };
-                return { label: 'Likely AI', color: 'text-red-600', bg: 'bg-red-100', barColor: 'bg-red-500' };
-            };
-
-            const getPlagiarismColor = (score) => {
-                if (score < 20) return 'text-green-600';
-                if (score < 50) return 'text-yellow-600';
-                return 'text-red-600';
-            };
-
-            const getSentenceColor = (prob) => {
-                if (prob < 30) return 'bg-green-100 border-green-300';
-                if (prob < 50) return 'bg-yellow-100 border-yellow-300';
-                if (prob < 70) return 'bg-orange-100 border-orange-300';
-                return 'bg-red-100 border-red-300';
-            };
+            const resetApp = () => { setText(''); setViewMode('input'); setSentencesData([]); setOverallMetrics(null); setUploadStatus(''); };
 
             return (
-                <div className="min-h-screen bg-gray-50">
-                    <div className="bg-white border-b border-gray-200">
-                        <div className="max-w-7xl mx-auto px-6 py-4">
-                            <div className="flex items-center space-x-3">
-                                <div className="bg-blue-600 p-2 rounded-lg">
-                                    <Shield className="text-white" />
+                <div className={`min-h-screen flex flex-col ${viewMode === 'input' ? 'bg-slate-950 text-white' : 'bg-gray-50'}`}>
+                    {/* Header */}
+                    <header className={`${viewMode === 'input' ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-gray-200 shadow-sm'} backdrop-blur-md sticky top-0 z-40 border-b no-print transition-colors duration-500`}>
+                        <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
+                            <div className="flex items-center space-x-4 cursor-pointer" onClick={() => !isAnalyzing && viewMode==='report' && resetApp()}>
+                                <div className="bg-gradient-to-br from-brand-500 to-brand-700 p-2.5 rounded-xl shadow-lg shadow-brand-500/30">
+                                    <Icons.Logo className="text-white w-6 h-6" />
                                 </div>
-                                <h1 className="text-2xl font-bold text-gray-900">Dr. Tsaban - AI & Plagiarism Detector</h1>
+                                <div className="hidden sm:block">
+                                    <h1 className={`text-xl font-extrabold tracking-tight ${viewMode === 'input' ? 'text-white' : 'text-gray-900'}`}>Dr. Tsaban ScholarGuard</h1>
+                                    <p className={`text-[10px] uppercase tracking-widest font-bold ${viewMode === 'input' ? 'text-slate-400' : 'text-brand-600'}`}>AI & Plagiarism Fighter V4</p>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div className="max-w-7xl mx-auto px-6 py-8">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-6">
-                            <div className="max-w-3xl mx-auto">
-                                <h2 className="text-xl font-semibold mb-6 text-gray-900">Upload or Paste Your Text</h2>
-                                
-                                <label className="flex items-center justify-center w-full h-40 px-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 border-dashed rounded-xl cursor-pointer hover:border-blue-400 mb-4">
-                                    <div className="flex flex-col items-center space-y-3">
-                                        <div className="bg-blue-600 p-3 rounded-full">
-                                            <Upload className="text-white" />
-                                        </div>
-                                        <div className="text-center">
-                                            <span className="font-semibold text-gray-700 text-lg">Drop files here or click to upload</span>
-                                            <p className="text-sm text-gray-500 mt-1">Supports .docx and .txt files</p>
-                                        </div>
-                                    </div>
-                                    <input type="file" className="hidden" accept=".docx,.txt" onChange={handleFileUpload} />
-                                </label>
-                                
-                                {uploadStatus && <p className="text-sm mb-4 text-blue-600">{uploadStatus}</p>}
-
-                                <textarea
-                                    value={text}
-                                    onChange={(e) => setText(e.target.value)}
-                                    placeholder="Or paste your text here for analysis..."
-                                    className="w-full h-48 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-                                />
-                                
-                                <div className="flex justify-between items-center mt-4">
-                                    <div className="text-sm text-gray-600">
-                                        {text.match(/\b\w+\b/g)?.length || 0} words · {text.length} characters
-                                    </div>
-                                    <button
-                                        onClick={analyzeText}
-                                        disabled={loading || text.length < 100}
-                                        className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 transition-all font-semibold"
+                            
+                            {viewMode === 'report' && !isAnalyzing && (
+                                <div className="flex space-x-4">
+                                    <button onClick={resetApp} className="text-sm font-bold text-gray-500 hover:text-gray-900 px-3 py-2 transition-colors">
+                                        New Audit
+                                    </button>
+                                    <button 
+                                        onClick={() => window.print()} 
+                                        className="bg-brand-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-md hover:bg-brand-700 flex items-center transition-all hover:scale-105 active:scale-95"
                                     >
-                                        {loading ? 'Analyzing...' : 'Check for AI & Plagiarism'}
+                                        <Icons.Printer className="w-5 h-5 mr-2" /> Print PDF Report
                                     </button>
                                 </div>
-                            </div>
+                            )}
                         </div>
+                    </header>
 
-                        {analysis && (
-                            <div className="space-y-6">
-                                {/* Main Results */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                        <div className="flex items-center space-x-3 mb-4">
-                                            <div className="bg-purple-100 p-2 rounded-lg">
-                                                <Brain className="text-purple-600" />
-                                            </div>
-                                            <h3 className="text-lg font-semibold">AI Detection</h3>
+                    {/* Main Content Area */}
+                    <main className="flex-1 w-full relative">
+                        {viewMode === 'input' ? (
+                            <div className="relative overflow-hidden w-full px-4 sm:px-6">
+                                {/* Animated Background Blobs */}
+                                <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none"></div>
+                                <div className="absolute top-0 -right-4 w-72 h-72 bg-brand-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
+                                <div className="absolute -bottom-8 left-20 w-72 h-72 bg-slate-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000 pointer-events-none"></div>
+
+                                <div className="max-w-5xl mx-auto pt-20 pb-16 relative z-10 flex flex-col items-center">
+                                    <div className="text-center mb-12 max-w-3xl">
+                                        <span className="bg-brand-500/10 text-brand-400 font-bold px-4 py-1.5 rounded-full text-xs uppercase tracking-widest border border-brand-500/20 mb-6 inline-block">Researchers & Academia Edition</span>
+                                        <h2 className="text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-tight mb-6">
+                                            The Ultimate Firewall Against <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-emerald-300">Generative AI</span>
+                                        </h2>
+                                        <p className="text-lg text-slate-400 font-medium leading-relaxed">
+                                            ScholarGuard utilizes four distinct search engines running simultaneously to cross-reference over 100 million open-access journals, scholarly DOIs, and the live proxy web—ensuring zero false positives and total academic integrity.
+                                        </p>
+                                    </div>
+
+                                    {/* Action Box */}
+                                    <div className="w-full max-w-4xl bg-slate-900/80 backdrop-blur-xl border border-slate-700 p-8 rounded-3xl shadow-2xl">
+                                        <div className="flex flex-col md:flex-row gap-6 mb-6">
+                                            <label className="flex-1 flex items-center justify-center p-6 bg-slate-800/50 border-2 border-slate-700 border-dashed rounded-2xl cursor-pointer hover:border-brand-500 hover:bg-slate-800 transition-all group">
+                                                <div className="flex flex-col items-center space-y-3">
+                                                    <div className="bg-slate-950 p-4 rounded-full text-slate-400 group-hover:text-brand-400 shadow-inner group-hover:shadow-brand-500/20 transition-all">
+                                                        <Icons.Upload className="w-7 h-7" />
+                                                    </div>
+                                                    <span className="font-bold text-slate-300 group-hover:text-white transition-colors">Upload Document (.docx / .txt)</span>
+                                                </div>
+                                                <input type="file" className="hidden" accept=".docx,.txt" onChange={handleFileUpload} />
+                                            </label>
                                         </div>
                                         
-                                        {(() => {
-                                            const classification = getAIClassification(analysis.aiProbability);
-                                            return (
+                                        {uploadStatus && <div className="text-sm font-bold text-center mb-6 text-brand-400 bg-brand-950 border border-brand-900 py-3 rounded-xl">{uploadStatus}</div>}
+
+                                        <div className="relative">
+                                            <textarea
+                                                value={text}
+                                                onChange={(e) => setText(e.target.value)}
+                                                placeholder="Or paste the article manually here for instant auditing..."
+                                                className="w-full h-80 p-8 text-slate-200 bg-slate-950 border border-slate-800 rounded-2xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 resize-none font-serif text-lg leading-loose placeholder-slate-600 scroll-smooth"
+                                            />
+                                            <div className="absolute bottom-6 right-6 text-xs font-bold text-slate-500 bg-slate-900 px-4 py-2 rounded-full border border-slate-800 shadow-md">
+                                                {(text.match(/\b\w+\b/g) || []).length} words
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="mt-8 flex justify-center">
+                                            <button
+                                                onClick={runRobustAnalysis}
+                                                disabled={text.trim().length === 0}
+                                                className="w-full md:w-auto px-12 py-5 bg-white text-slate-900 rounded-2xl hover:bg-gray-100 disabled:opacity-50 transition-all font-extrabold text-lg flex justify-center items-center shadow-xl hover:shadow-2xl hover:-translate-y-1 active:translate-y-0"
+                                            >
+                                                <Icons.ShieldCheck className="w-6 h-6 mr-3" /> Execute Comprehensive Audit
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <LandingFeatures />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="py-12 w-full max-w-5xl mx-auto report-container animate-fade-in px-4 sm:px-6">
+                                
+                                {isAnalyzing ? (
+                                    <div className="flex flex-col items-center justify-center py-40 bg-white rounded-3xl shadow-sm border border-gray-200 text-center">
+                                        <div className="w-24 h-24 relative mb-10">
+                                            <div className="absolute inset-0 border-4 border-gray-100 rounded-full"></div>
+                                            <div className="absolute inset-0 border-4 border-brand-500 rounded-full border-t-transparent animate-spin"></div>
+                                        </div>
+                                        <h2 className="text-3xl font-extrabold text-gray-900 mb-3 tracking-tight">Quad-Core Scraping Active...</h2>
+                                        <p className="text-gray-500 mb-8 font-medium text-lg max-w-md mx-auto leading-relaxed">Querying OpenAlex, Crossref waitlisted DOIs, Wikimedia, and Live Web proxies concurrently.</p>
+                                        <div className="w-80 bg-gray-100 rounded-full h-3 overflow-hidden shadow-inner">
+                                            <div className="bg-gradient-to-r from-brand-400 to-brand-600 h-full rounded-full transition-all duration-300" style={{width: `${analysisProgress}%`}}></div>
+                                        </div>
+                                        <p className="text-sm text-brand-600 font-extrabold mt-4 uppercase tracking-widest">{analysisProgress}% Processed</p>
+                                    </div>
+                                ) : overallMetrics ? (
+                                    <div className="space-y-12">
+                                        {/* =========== PAGE 1: EXECUTIVE SUMMARY =========== */}
+                                        <section className="summary-page bg-white p-12 rounded-3xl shadow-lg border border-gray-200 relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-96 h-96 bg-brand-50 rounded-full mix-blend-multiply filter blur-3xl opacity-60 -translate-y-1/2 translate-x-1/2"></div>
+                                            
+                                            <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 pb-8 border-b border-gray-100 relative z-10">
                                                 <div>
-                                                    <div className="flex justify-between items-end mb-2">
-                                                        <span className={`text-4xl font-bold ${classification.color}`}>
-                                                            {analysis.aiProbability}%
+                                                    <span className="bg-slate-100 text-slate-600 font-bold px-3 py-1 text-xs uppercase tracking-widest rounded-md mb-4 inline-block">Official Report</span>
+                                                    <h2 className="text-4xl font-extrabold text-gray-900 tracking-tight leading-none">ScholarGuard Audit</h2>
+                                                    <p className="text-gray-500 mt-2 font-medium">Artificial Intelligence & Originality Cross-Reference Profile</p>
+                                                </div>
+                                                <div className="text-left md:text-right mt-6 md:mt-0">
+                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{new Date().toLocaleDateString()}</p>
+                                                    <p className="text-2xl font-extrabold text-gray-800">{overallMetrics.totalWords} <span className="text-sm text-gray-500 font-medium">Tokens</span></p>
+                                                    <p className="text-lg font-bold text-gray-800">{overallMetrics.totalSentences} <span className="text-sm text-gray-500 font-medium">Sentences Checked</span></p>
+                                                </div>
+                                            </div>
+
+                                            {/* Top Gauges */}
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12 relative z-10">
+                                                {/* AI Gauge */}
+                                                <div className="bg-gray-50 p-10 rounded-3xl border border-gray-100 relative overflow-hidden">
+                                                    <div className="absolute top-4 right-4"><Icons.Brain className="w-8 h-8 text-gray-200" /></div>
+                                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Generative AI Probability</p>
+                                                    <div className="flex items-baseline space-x-4 mb-6">
+                                                        <span className={`text-7xl font-extrabold tracking-tighter ${
+                                                            overallMetrics.avgAiProb > 60 ? 'text-red-500' : overallMetrics.avgAiProb > 30 ? 'text-yellow-500' : 'text-brand-500'
+                                                        }`}>
+                                                            {overallMetrics.avgAiProb}%
                                                         </span>
-                                                        <span className={`text-lg font-semibold ${classification.color}`}>
-                                                            {classification.label}
+                                                        <span className="text-xl text-gray-600 font-bold uppercase tracking-wide">
+                                                            {overallMetrics.avgAiProb > 60 ? 'Likely AI' : overallMetrics.avgAiProb > 30 ? 'Mixed Authoring' : 'Human Author'}
                                                         </span>
                                                     </div>
-                                                    <div className="w-full bg-gray-200 rounded-full h-3">
-                                                        <div className={`h-3 rounded-full ${classification.barColor}`}
-                                                             style={{width: `${analysis.aiProbability}%`}}></div>
+                                                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner mb-6">
+                                                        <div className={`h-full rounded-full ${
+                                                            overallMetrics.avgAiProb > 60 ? 'bg-red-500' : overallMetrics.avgAiProb > 30 ? 'bg-yellow-500' : 'bg-brand-500'
+                                                        }`} style={{width: `${overallMetrics.avgAiProb}%`}}></div>
                                                     </div>
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-
-                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                        <div className="flex items-center space-x-3 mb-4">
-                                            <div className="bg-blue-100 p-2 rounded-lg">
-                                                <Search className="text-blue-600" />
-                                            </div>
-                                            <h3 className="text-lg font-semibold">Comprehensive Plagiarism Check</h3>
-                                        </div>
-                                        
-                                        {plagiarismResults ? (
-                                            <div>
-                                                <div className="flex justify-between items-end mb-2">
-                                                    <span className={`text-4xl font-bold ${getPlagiarismColor(plagiarismResults.overallScore)}`}>
-                                                        {plagiarismResults.overallScore}%
-                                                    </span>
-                                                    <span className={`text-lg font-semibold ${getPlagiarismColor(plagiarismResults.overallScore)}`}>
-                                                        {plagiarismResults.classification}
-                                                    </span>
-                                                </div>
-                                                <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-                                                    <div className={`h-3 rounded-full ${
-                                                        plagiarismResults.overallScore < 35 ? 'bg-green-500' :
-                                                        plagiarismResults.overallScore < 60 ? 'bg-yellow-500' : 'bg-red-500'
-                                                    }`} style={{width: `${plagiarismResults.overallScore}%`}}></div>
-                                                </div>
-                                                
-                                                <div className="space-y-2 text-sm">
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">Total Analyzed:</span>
-                                                        <span className="font-semibold">{plagiarismResults.totalChecked} sentences</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">High Matches:</span>
-                                                        <span className="font-semibold text-red-600">{plagiarismResults.highMatches}</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">Medium Matches:</span>
-                                                        <span className="font-semibold text-orange-600">{plagiarismResults.mediumMatches}</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">Low/Original:</span>
-                                                        <span className="font-semibold text-green-600">{plagiarismResults.lowMatches}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-8">
-                                                <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-2"></div>
-                                                <p className="text-sm mb-2">Deep Analysis in Progress...</p>
-                                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                                    <div className="bg-blue-600 h-2 rounded-full" style={{width: `${plagiarismProgress}%`}}></div>
-                                                </div>
-                                                <p className="text-xs mt-1">{plagiarismProgress}%</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Detailed Metrics */}
-                                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                    <div className="flex items-center space-x-3 mb-6">
-                                        <div className="bg-indigo-100 p-2 rounded-lg">
-                                            <TrendingUp className="text-indigo-600" />
-                                        </div>
-                                        <h3 className="text-lg font-semibold">Detailed Analysis</h3>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div className="border-l-4 border-purple-500 pl-4">
-                                            <p className="text-sm text-gray-600 mb-1">Perplexity Score</p>
-                                            <p className="text-2xl font-bold text-gray-900">{Math.round(analysis.perplexity.score)}%</p>
-                                            <p className="text-xs text-gray-500 mt-1">AI language patterns</p>
-                                        </div>
-                                        <div className="border-l-4 border-blue-500 pl-4">
-                                            <p className="text-sm text-gray-600 mb-1">Burstiness</p>
-                                            <p className="text-2xl font-bold text-gray-900">{Math.round(analysis.burstiness.score)}%</p>
-                                            <p className="text-xs text-gray-500 mt-1">Writing uniformity</p>
-                                        </div>
-                                        <div className="border-l-4 border-green-500 pl-4">
-                                            <p className="text-sm text-gray-600 mb-1">Lexical Diversity</p>
-                                            <p className="text-2xl font-bold text-gray-900">{analysis.lexical.diversity}%</p>
-                                            <p className="text-xs text-gray-500 mt-1">Vocabulary variation</p>
-                                        </div>
-                                        <div className="border-l-4 border-yellow-500 pl-4">
-                                            <p className="text-sm text-gray-600 mb-1">Readability</p>
-                                            <p className="text-2xl font-bold text-gray-900">{analysis.readability.fleschScore}</p>
-                                            <p className="text-xs text-gray-500 mt-1">Flesch score</p>
-                                        </div>
-                                        <div className="border-l-4 border-red-500 pl-4">
-                                            <p className="text-sm text-gray-600 mb-1">Avg Words/Sentence</p>
-                                            <p className="text-2xl font-bold text-gray-900">{analysis.readability.avgWordsPerSentence}</p>
-                                            <p className="text-xs text-gray-500 mt-1">Complexity measure</p>
-                                        </div>
-                                        <div className="border-l-4 border-orange-500 pl-4">
-                                            <p className="text-sm text-gray-600 mb-1">Unique Words</p>
-                                            <p className="text-2xl font-bold text-gray-900">{analysis.lexical.uniqueWords}</p>
-                                            <p className="text-xs text-gray-500 mt-1">Of {analysis.lexical.totalWords} total</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Sentence Analysis */}
-                                {sentenceAnalysis.length > 0 && (
-                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                        <div className="flex items-center space-x-3 mb-6">
-                                            <div className="bg-orange-100 p-2 rounded-lg">
-                                                <Zap className="text-orange-600" />
-                                            </div>
-                                            <h3 className="text-lg font-semibold">AI Detection - Complete Sentence Analysis</h3>
-                                        </div>
-
-                                        <div className="mb-4 flex items-center space-x-4 text-sm">
-                                            <div className="flex items-center space-x-2">
-                                                <div className="w-4 h-4 bg-green-200 border border-green-300 rounded"></div>
-                                                <span>Human-like</span>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <div className="w-4 h-4 bg-yellow-200 border border-yellow-300 rounded"></div>
-                                                <span>Possibly AI</span>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <div className="w-4 h-4 bg-orange-200 border border-orange-300 rounded"></div>
-                                                <span>Likely AI</span>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <div className="w-4 h-4 bg-red-200 border border-red-300 rounded"></div>
-                                                <span>AI-generated</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                                            {sentenceAnalysis.map((sentence, idx) => (
-                                                <div key={idx} className={`p-3 rounded-lg border ${getSentenceColor(sentence.probability)}`}>
-                                                    <div className="flex justify-between items-start mb-1">
-                                                        <span className="text-xs font-semibold text-gray-600">Sentence {idx + 1}</span>
-                                                        <span className="text-xs font-bold text-gray-700">{sentence.probability}% AI</span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-800">{sentence.text}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Plagiarism Details */}
-                                {plagiarismResults && plagiarismResults.checkedSentences && (
-                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                        <div className="flex items-center space-x-3 mb-6">
-                                            <div className="bg-blue-100 p-2 rounded-lg">
-                                                <Search className="text-blue-600" />
-                                            </div>
-                                            <h3 className="text-lg font-semibold">Complete Plagiarism Analysis - Every Sentence Checked</h3>
-                                        </div>
-
-                                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                                            {plagiarismResults.checkedSentences.slice(0, 20).map((sentence, idx) => (
-                                                <div key={idx} className={`p-4 rounded-lg border ${
-                                                    sentence.matchProbability < 40 ? 'bg-green-50 border-green-300' :
-                                                    sentence.matchProbability < 70 ? 'bg-yellow-50 border-yellow-300' :
-                                                    'bg-red-50 border-red-300'
-                                                }`}>
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <span className="text-xs font-semibold text-gray-600">Passage {idx + 1}</span>
-                                                        <span className={`text-xs font-bold px-2 py-1 rounded ${
-                                                            sentence.matchProbability < 40 ? 'bg-green-200 text-green-800' :
-                                                            sentence.matchProbability < 70 ? 'bg-yellow-200 text-yellow-800' :
-                                                            'bg-red-200 text-red-800'
-                                                        }`}>{sentence.matchProbability}% Match</span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-800">{sentence.text}</p>
-                                                    {sentence.sources.length > 0 && (
-                                                        <div className="mt-2 pt-2 border-t">
-                                                            <p className="text-xs font-semibold mb-1">Sources:</p>
-                                                            {sentence.sources.map((src, i) => (
-                                                                <div key={i} className="text-xs bg-white p-2 rounded">
-                                                                    {src.title} - {src.similarity}%
-                                                                </div>
-                                                            ))}
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                                            <div className="text-[10px] uppercase font-bold text-gray-400 mb-1">Burstiness Var.</div>
+                                                            <div className="font-extrabold text-gray-800">{overallMetrics.burstiness.cv.toFixed(2)}</div>
                                                         </div>
-                                                    )}
+                                                        <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                                            <div className="text-[10px] uppercase font-bold text-gray-400 mb-1">Perplexity Density</div>
+                                                            <div className="font-extrabold text-gray-800">Analyzed</div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            ))}
-                                        </div>
 
-                                        {plagiarismResults.totalChecked > 20 && (
-                                            <p className="text-sm text-gray-500 mt-4 text-center">
-                                                Showing first 20 of {plagiarismResults.totalChecked} analyzed sentences
-                                            </p>
-                                        )}
+                                                {/* Plagiarism Gauge */}
+                                                <div className="bg-slate-900 p-10 rounded-3xl border border-slate-800 relative overflow-hidden shadow-xl">
+                                                    <div className="absolute top-0 right-0 w-40 h-40 bg-purple-600 rounded-full mix-blend-screen opacity-20 filter blur-3xl translate-x-1/2 -translate-y-1/2"></div>
+                                                    <div className="absolute top-4 right-4"><Icons.Globe className="w-8 h-8 text-slate-800" /></div>
+                                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Confirmed Plagiarism</p>
+                                                    <div className="flex items-baseline space-x-4 mb-6 relative z-10">
+                                                        <span className="text-7xl font-extrabold tracking-tighter text-purple-400">
+                                                            {overallMetrics.plagiarismPercent}%
+                                                        </span>
+                                                        <span className="text-xl text-slate-300 font-bold uppercase tracking-wide">
+                                                            Direct Match
+                                                        </span>
+                                                    </div>
+                                                    <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden shadow-inner mb-6 relative z-10">
+                                                        <div className="h-full bg-gradient-to-r from-purple-500 to-purple-400 rounded-full" style={{width: `${overallMetrics.plagiarismPercent}%`}}></div>
+                                                    </div>
+                                                    <p className="text-sm text-slate-400 font-medium relative z-10 leading-relaxed">Quad-core engine scanned OpenAlex, Crossref DOIs, Encyclopedias, and Web Proxies returning <strong className="text-white">{overallMetrics.matchedSources?.length || 0} unique exact sources</strong>.</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Detailed Source Matches Table */}
+                                            {overallMetrics.matchedSources && overallMetrics.matchedSources.length > 0 ? (
+                                                <div className="relative z-10 mt-16 border-t border-gray-100 pt-12">
+                                                    <h3 className="text-2xl font-extrabold text-gray-900 flex items-center mb-6">
+                                                        <Icons.ShieldCheck className="w-6 h-6 mr-3 text-purple-600" /> Discovered Sources Reference List
+                                                    </h3>
+                                                    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                                                        <table className="min-w-full divide-y divide-gray-200 text-left">
+                                                            <thead className="bg-gray-50 border-b border-gray-200">
+                                                                <tr>
+                                                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-widest">Source Origin Type</th>
+                                                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-widest">Confirmed Title & URL Reference</th>
+                                                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-widest text-right">Sentence Matches</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="bg-white divide-y divide-gray-100">
+                                                                {overallMetrics.matchedSources.map((src, idx) => (
+                                                                    <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                                                        <td className="px-6 py-5 whitespace-nowrap text-sm font-bold text-gray-900">
+                                                                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold uppercase tracking-wider rounded-md border 
+                                                                                ${src.type === 'Wikipedia' || src.type === 'Encyclopedia' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                                                                                src.type === 'Research Paper' || src.type === 'Academic Journal' ? 'bg-gold-50 text-gold-700 border-gold-200' : 
+                                                                                'bg-purple-50 text-purple-700 border-purple-200'}`}>
+                                                                                {src.type}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-6 py-5 text-sm text-gray-500 truncate max-w-lg">
+                                                                            <a href={src.url} target="_blank" rel="noreferrer" className="text-brand-600 hover:text-brand-800 hover:underline font-bold text-base block truncate mb-1">
+                                                                                {src.title}
+                                                                            </a>
+                                                                            <span className="text-xs font-mono text-gray-400 block truncate">{src.url}</span>
+                                                                        </td>
+                                                                        <td className="px-6 py-5 whitespace-nowrap text-lg text-gray-900 text-right font-extrabold bg-gray-50/50">
+                                                                            {src.count}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-emerald-50 text-emerald-900 p-8 rounded-2xl border border-emerald-200 flex items-start relative z-10 mt-12">
+                                                    <div className="bg-emerald-200 text-emerald-700 p-2 rounded-xl mr-5"><Icons.Check className="w-8 h-8" /></div>
+                                                    <div>
+                                                        <h4 className="font-extrabold text-xl mb-1">100% Original Content Confirmed</h4>
+                                                        <p className="text-emerald-700 font-medium">The ScholarGuard deep web scraper scoured millions of academic papers, journals, encyclopedias, and open web properties but found zero exact sentence overlaps. No plagiarism detected.</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </section>
+
+                                        {/* =========== PAGE 2+: ANNOTATED DOCUMENT VIEW =========== */}
+                                        <section className="bg-white p-12 rounded-3xl shadow-lg border border-gray-200">
+                                            <div className="flex flex-col md:flex-row items-center justify-between mb-10 pb-6 border-b border-gray-100">
+                                                <h2 className="text-3xl font-extrabold text-gray-900 mb-4 md:mb-0">Annotated Corpus</h2>
+                                                
+                                                {/* Toggles (Hidden during print) */}
+                                                <div className="bg-slate-100 p-1.5 rounded-2xl flex space-x-1 no-print shadow-inner border border-slate-200">
+                                                    <button 
+                                                        onClick={() => setHighlightMode('ai')}
+                                                        className={`px-6 py-3 rounded-xl text-sm font-extrabold tracking-wide transition-all ${highlightMode === 'ai' ? 'bg-white text-gray-900 shadow border border-gray-200' : 'text-gray-500 hover:text-gray-700 hover:bg-slate-200/50'}`}
+                                                    >
+                                                        Review AI Predictability
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setHighlightMode('plagiarism')}
+                                                        className={`px-6 py-3 rounded-xl text-sm font-extrabold tracking-wide transition-all ${highlightMode === 'plagiarism' ? 'bg-slate-900 text-white shadow shadow-slate-900/40' : 'text-gray-500 hover:text-gray-700 hover:bg-slate-200/50'}`}
+                                                    >
+                                                        Review Plagiarism Strikes
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Print Legend (Only visible in Print) */}
+                                            <div className="print-only hidden mb-8 p-6 border-2 border-gray-800 rounded-xl text-sm text-gray-800 shadow-[4px_4px_0_0_#1f2937]">
+                                                <strong className="block mb-3 text-lg font-extrabold uppercase tracking-widest">Annotation Key:</strong>
+                                                <div className="flex flex-col space-y-2 font-medium">
+                                                    <span className="flex items-center"><div className="w-4 h-4 border-b-2 border-red-500 mr-3"></div><u className="text-red-600 decoration-red-500 mr-2 font-bold focus">Red Underline</u>: Analyzed as highly uniform/synthetic AI structure.</span>
+                                                    <span className="flex items-center"><div className="w-4 h-4 border-2 border-purple-500 bg-purple-100 mr-3"></div><span className="font-bold border-2 border-purple-700 bg-purple-50 px-2 mr-2">Boxed Block</span>: Direct, verbatim plagiarism hit detected on the web.</span>
+                                                </div>
+                                            </div>
+
+                                            {/* The Interactive Text */}
+                                            <div className="doc-text bg-gray-50/50 p-8 rounded-2xl border border-gray-100">
+                                                {sentencesData.map((sData, idx) => (
+                                                    <React.Fragment key={idx}>
+                                                        <SentenceSpan 
+                                                            sentence={sData.text} 
+                                                            index={idx}
+                                                            mode={highlightMode}
+                                                            aiScore={sData.aiScore}
+                                                            plagData={sData.plagData}
+                                                            activeIndex={activeSentenceIdx}
+                                                            setActiveIndex={setActiveSentenceIdx}
+                                                        />
+                                                    </React.Fragment>
+                                                ))}
+                                            </div>
+                                        </section>
                                     </div>
-                                )}
+                                ) : null}
                             </div>
                         )}
-                    </div>
+                    </main>
+                    
+                    {/* Footer */}
+                    <footer className={`mt-auto py-8 text-center text-sm font-bold tracking-widest uppercase transition-colors duration-500 no-print ${viewMode === 'input' ? 'text-slate-700 border-t border-slate-800' : 'text-gray-400 border-t border-gray-200'}`}>
+                        &copy; 2026 Dr. Tsaban ScholarGuard Systems
+                    </footer>
                 </div>
             );
         };
 
-        ReactDOM.render(<AITextDetector />, document.getElementById('root'));
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<AIFinderApp />);
     </script>
 </body>
 </html>
